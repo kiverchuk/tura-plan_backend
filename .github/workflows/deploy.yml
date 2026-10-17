@@ -1,0 +1,135 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to all targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Setup SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+            echo "Secret SSH_PRIVATE_KEY is empty"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' \
+            'Host *' \
+            '  IdentityFile ~/.ssh/id_deploy' \
+            '  IdentitiesOnly yes' \
+            '  StrictHostKeyChecking accept-new' \
+            '  ServerAliveInterval 30' \
+            '  ServerAliveCountMax 10' \
+            '  RequestTTY no' \
+            > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy to targets
+        env:
+          DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_TARGETS:-}" ]; then
+            echo "Secret DEPLOY_TARGETS is empty"
+            exit 1
+          fi
+
+          echo "$DEPLOY_TARGETS" > /tmp/deploy-targets.json
+          COUNT=$(python3 -c 'import json; print(len(json.load(open("/tmp/deploy-targets.json"))))')
+          if [ "$COUNT" -lt 1 ]; then
+            echo "DEPLOY_TARGETS must be a non-empty JSON array"
+            exit 1
+          fi
+          echo "Targets: $COUNT"
+
+          python3 <<'PY'
+          import json, subprocess, sys, textwrap
+
+          targets = json.load(open("/tmp/deploy-targets.json"))
+          failed = []
+
+          for i, t in enumerate(targets, 1):
+              name = t.get("name") or f"target{i}"
+              host = t["host"]
+              port = str(t.get("port") or 22)
+              user = t["user"]
+              path = t["path"].rstrip("/")
+              php = t.get("php") or "/opt/php84/bin/php"
+              node = str(t.get("node") or "").strip()
+              branch = t.get("branch") or "main"
+              repo = (t.get("repo") or "").strip()
+              owner = (t.get("owner") or "").strip()
+              queue_service = (t.get("queue_service") or "turaplan-queue").strip()
+              destination = f"{user}@{host}"
+
+              print(f"\n===== [{i}/{len(targets)}] {name} → {destination}:{path} =====", flush=True)
+
+              remote = textwrap.dedent(f"""\
+              set -euo pipefail
+              export TERM=dumb
+              cd '{path}'
+              git config --global --add safe.directory '{path}' || true
+
+              if [ ! -d .git ]; then
+                echo "ERROR: {path} is not a git repo. Clone first:"
+                echo "  git clone -b {branch} {repo or 'git@github.com:ORG/turaplan-backend.git'} {path}"
+                exit 1
+              fi
+
+              echo '→ git'
+              if [ -n '{owner}' ]; then
+                sudo -u '{owner}' -H git config --global --add safe.directory '{path}' || true
+                sudo -u '{owner}' -H env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git -C '{path}' fetch --prune origin
+                sudo -u '{owner}' -H git -C '{path}' checkout '{branch}'
+                sudo -u '{owner}' -H git -C '{path}' reset --hard 'origin/{branch}'
+              else
+                git fetch --prune origin
+                git checkout '{branch}'
+                git reset --hard 'origin/{branch}'
+              fi
+
+              export PHP_BIN='{php}'
+              export NODE_VERSION='{node}'
+              export OWNER='{owner}'
+              export QUEUE_SERVICE='{queue_service}'
+              bash deploy/deploy.sh
+
+              echo "OK {name} $(git rev-parse --short HEAD)"
+              """)
+              cmd = [
+                  "ssh",
+                  "-p", port,
+                  "-o", "RequestTTY=no",
+                  destination,
+                  "bash", "--noprofile", "--norc", "-s",
+              ]
+              print("+ " + " ".join(cmd) + " <script>", flush=True)
+              try:
+                  subprocess.run(cmd, input=remote, text=True, check=True)
+              except subprocess.CalledProcessError:
+                  failed.append(name)
+                  print(f"FAILED: {name}", flush=True)
+
+          if failed:
+              print("Deploy failed for: " + ", ".join(failed), flush=True)
+              sys.exit(1)
+
+          print("All targets deployed", flush=True)
+          PY

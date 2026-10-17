@@ -1,0 +1,64 @@
+openapi: 3.1.0
+info:
+  title: TuraPlan API
+  version: 1.0.0
+  description: Owner-scoped REST API. Offline-first clients remain usable without this service.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /auth/register: {post: {security: [], operationId: register, responses: {'201': {description: Account created}}}}
+  /auth/login: {post: {security: [], operationId: login, responses: {'200': {description: Access and refresh session}}}}
+  /auth/logout: {post: {operationId: logout, responses: {'204': {description: Revoked}}}}
+  /auth/refresh: {post: {security: [], operationId: refresh, responses: {'200': {description: Rotated session}}}}
+  /auth/verify-email: {post: {operationId: verifyEmail, responses: {'204': {description: Verified}}}}
+  /auth/verify-email/{id}/{hash}: {get: {security: [], operationId: confirmEmail, parameters: [{name: id, in: path, required: true, schema: {type: string}}, {name: hash, in: path, required: true, schema: {type: string}}], responses: {'302': {description: Verified and redirected}, '403': {description: Invalid or expired signature}}}}
+  /auth/password/forgot: {post: {security: [], operationId: forgotPassword, responses: {'202': {description: Accepted}}}}
+  /auth/password/reset: {post: {security: [], operationId: resetPassword, responses: {'204': {description: Reset}}}}
+  /me: {get: {operationId: getProfile, responses: {'200': {description: Profile}}}, patch: {operationId: updateProfile, responses: {'200': {description: Updated}}}}
+  /me/devices: {get: {operationId: listDevices, responses: {'200': {description: Registered account devices}}}}
+  /me/devices/{id}: {delete: {operationId: revokeDevice, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'204': {description: Device and sessions revoked}, '404': {description: Not found}}}}
+  /employers: {get: {operationId: listEmployers, responses: {'200': {description: Employer list}}}, post: {operationId: createEmployer, responses: {'201': {description: Created}}}}
+  /calendars: {get: {operationId: listCalendars, responses: {'200': {description: Calendars}}}, post: {operationId: createCalendar, responses: {'201': {description: Created}}}}
+  /shift-types: {get: {operationId: listShiftTypes, responses: {'200': {description: Shift types}}}, post: {operationId: createShiftType, responses: {'201': {description: Created}}}}
+  /shifts: {get: {operationId: listShifts, responses: {'200': {description: Shifts}}}, post: {operationId: createShift, responses: {'201': {description: Created}}}}
+  /personal-events: {get: {operationId: listEvents, responses: {'200': {description: Events}}}, post: {operationId: createEvent, responses: {'201': {description: Created}}}}
+  /rotation-templates: {get: {operationId: listRotations, responses: {'200': {description: Templates}}}, post: {operationId: createRotation, responses: {'201': {description: Created}}}}
+  /rotations/preview: {post: {operationId: previewRotation, responses: {'200': {description: Conflicts and proposed changes}}}}
+  /rotations/apply: {post: {operationId: applyRotation, responses: {'200': {description: Applied atomically}}}}
+  /rotations/undo: {post: {operationId: undoRotation, responses: {'200': {description: Reverted}}}}
+  /sync/push: {post: {operationId: syncPush, responses: {'200': {description: Idempotent mutation results}}}}
+  /sync/pull: {get: {operationId: syncPull, responses: {'200': {description: Changes and tombstones}}}}
+  /search: {get: {operationId: search, responses: {'200': {description: Owner-scoped results}}}}
+  /reports/hours: {get: {operationId: hoursReport, responses: {'200': {description: Hours breakdown}}}}
+  /reports/earnings: {get: {operationId: earningsReport, responses: {'200': {description: Estimated earnings by currency}}}}
+  /reports/overtime: {get: {operationId: overtimeReport, responses: {'200': {description: Overtime breakdown}}}}
+  /shares: {post: {operationId: createShare, responses: {'201': {description: Scoped expiring link}}}}
+  /shares/{id}: {get: {operationId: getShare, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Share settings}}}, patch: {operationId: updateShare, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Updated share settings}}}, delete: {operationId: revokeShare, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'204': {description: Revoked}}}}
+  /shared/{token}: {get: {security: [], operationId: viewShare, responses: {'200': {description: Public read-only projection}}}}
+  /exports: {post: {operationId: createExport, responses: {'202': {description: Export queued}}}}
+  /exports/{id}: {get: {operationId: exportStatus, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Export processing status}}}}
+  /exports/{id}/download: {get: {operationId: downloadExport, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Private export file}, '410': {description: Expired export}}}}
+  /imports/validate: {post: {operationId: validateImport, responses: {'200': {description: Preview}}}}
+  /imports: {post: {operationId: importData, responses: {'200': {description: Atomically imported}}}}
+  /billing/apple/verify: {post: {operationId: verifyApplePurchase, responses: {'200': {description: Verified entitlement}}}}
+  /billing/google/verify: {post: {operationId: verifyGooglePurchase, responses: {'200': {description: Verified entitlement}}}}
+  /billing/restore: {post: {operationId: restorePurchases, responses: {'200': {description: Restored}}}}
+  /billing/entitlements: {get: {operationId: entitlements, responses: {'200': {description: Current access}}}}
+  /holiday-packs: {get: {security: [], operationId: holidayPacks, responses: {'200': {description: Versioned packs with sources}}}}
+  /app-config: {get: {security: [], operationId: appConfig, responses: {'200': {description: Public app config}}}}
+  /feature-flags: {get: {security: [], operationId: featureFlags, responses: {'200': {description: Public feature flags}}}}
+  /privacy/export: {post: {operationId: privacyExport, responses: {'202': {description: Export request}}}}
+  /privacy/rectify: {post: {operationId: privacyRectify, responses: {'202': {description: Rectification request}}}}
+  /privacy/erase: {post: {operationId: privacyErase, responses: {'202': {description: Erasure request}}}}
+  /privacy/requests/{id}: {get: {security: [], operationId: privacyRequestStatus, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Minimal request status}, '404': {description: Not found}}}}
+  /privacy/requests/{id}/download: {get: {operationId: downloadPrivacyExport, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {'200': {description: Portable personal data export}, '404': {description: Not found}, '410': {description: Expired export}}}}
+  /support/tickets: {post: {operationId: supportTicket, responses: {'201': {description: Ticket created}}}}
+  /billing/apple/notifications: {post: {security: [], operationId: appleServerNotification, responses: {'200': {description: Signed event accepted}, '503': {description: Apple verification is not configured}}}}
+  /billing/google/notifications: {post: {security: [], operationId: googlePubSubNotification, responses: {'200': {description: OIDC-authenticated event accepted}, '401': {description: Invalid token}, '503': {description: OIDC verifier is not configured}}}}
+  /health/live: {get: {security: [], operationId: liveness, responses: {'200': {description: Process is alive}}}}
+  /health/ready: {get: {security: [], operationId: readiness, responses: {'200': {description: Dependencies are ready}}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}

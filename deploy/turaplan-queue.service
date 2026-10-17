@@ -1,0 +1,16 @@
+[Unit]
+Description=TuraPlan queue worker
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_DIR__
+ExecStart=__PHP_BIN__ artisan queue:work database --sleep=1 --tries=3 --timeout=120 --max-time=3600
+Restart=always
+RestartSec=3
+TimeoutStopSec=150
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
