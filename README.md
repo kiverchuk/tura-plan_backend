@@ -8,12 +8,12 @@ PHP 8.3+, Composer 2, MySQL 9.x. The development host uses PHP 8.4 and Composer 
 
 ## Local site
 
-OSPanel serves this API the same way as QuickPost. The workspace folder `work-calendar` contains `.osp/project.ini`: PHP 8.4, document root `{base_dir}/backend/public`, host `wc.bruisergames.online`. After an OSPanel restart that name points at this machine and Nginx talks to `backend/public` directly. There is no separate PHP server to start.
+OSPanel serves this API the same way as QuickPost. The workspace folder `work-calendar` contains `.osp/project.ini`: PHP 8.4, document root `{base_dir}/backend/public`. After an OSPanel restart the host is `http://work-calendar`.
 
-The web client calls `http://wc.bruisergames.online`. iOS and Android builds call `https://wc.bruisergames.online`. The public DNS record is added later; until then the production name is only the local OSPanel host.
+The web client uses `EXPO_PUBLIC_API_URL_WEB` (`http://work-calendar`). iOS and Android builds use `EXPO_PUBLIC_API_URL_NATIVE` (`https://wc.bruisergames.online`).
 
 1. `composer install`
-2. Copy `.env.example` to `.env`, keep `APP_URL=http://wc.bruisergames.online`, set the OSPanel MySQL root password, then `php artisan key:generate`
+2. Copy `.env.example` to `.env`, keep `APP_URL=http://work-calendar`, set the OSPanel MySQL root password, then `php artisan key:generate`
 3. `php artisan migrate --seed`
 
 Run `composer lint` and `composer test` before opening a backend PR. CI runs both against an isolated SQLite database.
